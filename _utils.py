@@ -53,10 +53,11 @@ class ImageDataset(Dataset):
 
 
 class NerfDataset(Dataset):
-    def __init__(self, data_path, save_path, need_scale=True):
+    def __init__(self, data_path, save_path, need_scale=True, only_main=False):
         self.data_path = data_path
         self.save_path = save_path
         self.need_scale = need_scale
+        self.only_main = only_main
         self.scaler1 = MinMaxScaler()
         self.scaler2 = MinMaxScaler()
         self.enc3_1 = self.encode('model_200000.npy', self.scaler1)
@@ -67,7 +68,10 @@ class NerfDataset(Dataset):
         return len(self.npy)
 
     def __getitem__(self, idx):
-        return self.npy[idx]
+        if self.only_main:
+            return self.npy[0]
+        else:
+            return self.npy[idx]
 
 
     def encode(self, path, scaler):
@@ -167,27 +171,28 @@ def process_img(img):
 
 
 def compare_img(title, img1, img2, criterion):
-    img1 = torch.tensor(img1)
-    img2 = torch.tensor(img2)
-    with torch.no_grad():
-        loss = criterion(img1, img2)
-        print(loss)
-    img1 = process_img(img1)
-    img2 = process_img(img2)
+    if not torch.is_tensor(img1):
+        img1 = torch.tensor(img1)
+        img2 = torch.tensor(img2)
+    loss = criterion(img1, img2)
+    img1 = process_img(img1.to('cpu').detach())
+    img2 = process_img(img2.to('cpu').detach())
     fig, axes = plt.subplots(1, 2, figsize=(10, 5))
     fig.suptitle(title)
     axes[0].imshow(img1)
-    axes[0].set_title('Original')
+    axes[0].set_title('Reconstruction')
     axes[0].axis('off')  # 축을 끔
 
     # 두 번째 이미지 출력
     axes[1].imshow(img2)
-    axes[1].set_title('Reconstruction')
+    axes[1].set_title('Original')
     axes[1].axis('off')  # 축을 끔
 
     # 레이아웃 조정 및 출력
     plt.tight_layout()
     plt.show()
+
+    return loss
 
 
 def make_image(pth, dtype, h, w):
